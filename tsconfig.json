@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "module": "commonjs",
+      "declaration": true,
+      "removeComments": true,
+      "preserveConstEnums": true,
+      "esModuleInterop": true,
+      "sourceMap": true,
+      "outDir": "./dist",
+      "baseUrl": "./",
+      "rootDir": "./src",
+      "incremental": false,
+    }
+  }
