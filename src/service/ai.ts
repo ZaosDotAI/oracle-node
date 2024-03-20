@@ -61,7 +61,7 @@ export const processInput = async (item: any) => {
 					}],
 					data: JSON.stringify(res.message)
 			};
-			return message
+			return messageData
 		}
 		throw error
 	}	

@@ -1,8 +1,8 @@
 import path from "path";
 import fs from 'fs'
 
-// Function to get the previous cursor value
-export const getCursor = () => {
+// Function to get the previous cursor and timestamp values
+export const getCursorAndTimestamp = () => {
     const filePath = path.join(__dirname, '../../src/mock/db.json');
     try {
         const data = fs.readFileSync(filePath, 'utf8');
@@ -12,10 +12,11 @@ export const getCursor = () => {
     }
 };
 
-// Function to save the previous cursor value
-export const saveCursor = async (data: Record<string, any>) => {
+// Function to set the previous cursor and timestamp value
+export const setCursorAndTimestamp = async (data: Record<string, any>) => {
     try {
         const filePath = path.join(__dirname, '../../src/mock/db.json');
+        console.log("Setting cursor and timestamp", data);
         await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
     } catch (error) {
         throw error;

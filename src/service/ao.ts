@@ -3,14 +3,16 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 import { aoTransactions } from "../helpers/graphql";
 import { getWallet, getWalletAddress } from "../helpers/wallet";
 import { processInput } from "./ai";
-import { getCursor, saveCursor } from "../helpers/data";
+import { getCursorAndTimestamp, setCursorAndTimestamp } from "../helpers/data";
 
 
 export const cronData = async () => {
 	try {
-		const cursorData = await getCursor()
-		const previousCursor = cursorData ? cursorData.cursor : null
-		let nextCursor: any = null
+		const cursorAndTimestamp = await getCursorAndTimestamp()
+		const previousCursor = cursorAndTimestamp ? cursorAndTimestamp.cursor : ""
+		const previousTimestamp = cursorAndTimestamp ? cursorAndTimestamp.timestamp : 0
+		let nextCursor: string = null
+		let nextTimestamp: number = null
 
 		const walletAddress = getWalletAddress()
 		
@@ -22,7 +24,7 @@ export const cronData = async () => {
 		// Get all edges / page info
 		let {pageInfo, edges} = res.data.data.transactions
 		while (pageInfo.hasNextPage) {
-			nextCursor = edges[edges.length - 1].cursor
+			nextCursor = edges[edges.length - 1]?.cursor
 			res = await axios.post("https://arweave.net/graphql", {
 				query: aoTransactions(walletAddress, nextCursor)
 			})
@@ -30,21 +32,21 @@ export const cronData = async () => {
 			edges = [...edges, ...res.data.data.transactions.edges]
 		}
 
-		// Remove duplicates
+		// Remove duplicates after timestamp
 		const uniqueNodeIds = new Set(edges.map((e: any) => e.node.id))
-		const uniqueEdges = edges.filter((e: any) => {
-			if (uniqueNodeIds.has(e.node.id)) {
-				// First instance of id, add to list
-				uniqueNodeIds.delete(e)
+		const uniqueEdgesAfterTimestamp = edges.filter((e: any) => {
+			if (uniqueNodeIds.has(e.node.id) && e.node.block !== null && e.node.block?.timestamp > previousTimestamp) {
+				// Unique / new id, keep
 				return true 
 			} else {
-				// Duplicate id, ignore
+				// Duplicate / historic id, remove
+				uniqueNodeIds.delete(e)
 				return false
 			}
 		})
 
 		// Extract transaction data
-		const dataItems = await Promise.all(uniqueEdges?.map(async (e: any) => {
+		const dataItems = await Promise.all(uniqueEdgesAfterTimestamp?.map(async (e: any) => {
 			const tags = e.node.tags.reduce((result: any, filter: any) => {
 				result[filter.name] = filter.value;
 				return result;
@@ -72,13 +74,20 @@ export const cronData = async () => {
 
 		// Send messages
 		for (let i = 0; i < messages.length; i++) {
+			console.log("Sending message", messages[i])
 			await message(messages[i])
 				.then(console.log)
   			.catch(console.error);
 		}
 
-		if (nextCursor && nextCursor !== previousCursor) {
-			await saveCursor({ cursor: nextCursor })
+		// Get last timestamp & set db data
+		nextTimestamp = uniqueEdgesAfterTimestamp[uniqueEdgesAfterTimestamp.length - 1]?.node.block.timestamp
+
+		if (nextTimestamp && (nextCursor !== previousCursor || nextCursor == null)) {
+			await setCursorAndTimestamp({ 
+				cursor: nextCursor,
+				timestamp: nextTimestamp
+			})
 		}
 
 	} catch (error) {
